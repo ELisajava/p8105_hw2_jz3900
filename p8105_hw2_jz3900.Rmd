@@ -9,7 +9,6 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 ```{r, message=FALSE}
 library(tidyverse)
 library(readxl)
@@ -107,14 +106,6 @@ Among the 60 stations that serve the A train, 17 have at least one ADA compliant
 
 # Problem 2
 ## Step 1: Read and clean the Mr. Trash Wheel sheet
-```{r}
-mr_df = read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx", sheet = "Mr. Trash Wheel", range = "A2:N653", na = c("NA", "", ",")) %>% 
-  filter(!is.na(Dumpster)) %>% 
-  janitor::clean_names() %>% 
-  mutate(year = as.character(year)) %>% 
-  mutate(trash_wheel = "mr") %>%
-  mutate(sports_balls = as.integer(sports_balls), homes_powered = (weight_tons*500/30))
-```
 ```{r}
 # Indicate the sheet and exclude non-data entries by skipping rows and specifying the range.
 mr_trash_wheel = read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx",
