@@ -1,0 +1,330 @@
+---
+title: "p8105_hw2_jz3900"
+author: "ELisajava"
+date: "2024-10-02"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r, message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+# Problem 1
+## Step 1: Import and clean data
+
+* Retain variables: line, station, name, station latitude, longitude, routes served, entry, vending, entrance type, and ADA compliance.
+
+* Convert the entry variable from character to a logical variable : The entry column has YES or NO values, so you'll need to convert it into a logical TRUE/FALSE format (the ifelse or case_match function may be useful).
+
+```{r}
+# Read and clean the data
+NYC_Subway_Data = read_csv("./dataset/NYC_Transit_Subway_Entrance_And_Exit_Data.csv") %>% 
+  janitor::clean_names() %>% 
+  select(line, station_name, station_latitude, station_longitude, route1:route11, entry, vending, entrance_type, ada) %>% 
+  mutate(entry = case_when(
+    entry == "YES" ~ TRUE,
+    entry == "NO"  ~ FALSE
+  )) # Convert entry to logical TRUE/FALSE
+
+# View the cleaned data
+NYC_Subway_Data
+```
+
+### A description of the dataset:
+
+The cleaned dataset includes variables such as subway line, station name, latitude, longitude, routes served, entry status, vending, entrance type, and ADA compliance. To prepare the data, I standardized the column names using clean_names(), filtered relevant columns with select(), and transformed the entry variable from character values ("YES"/"NO") to logical (TRUE/FALSE) using case_when(). The final dataset consists of r nrow(NYC_Subway_Data) rows and r ncol(NYC_Subway_Data) columns. It is tidy, with each variable as a distinct column, each observation as a row, and each value neatly contained in its own cell.
+
+## Step 2: Answer the following questions bases on these data
+### (i) How many distinct stations are there?  
+```{r}
+distinct_station = 
+   NYC_Subway_Data %>%
+  distinct(line, station_name) %>%
+  nrow()
+```
+There are `r distinct_station` distinct stations in this dataset. 
+
+### (ii) How many stations are ADA compliant?
+```{r}
+ada_compliant =
+  NYC_Subway_Data %>% 
+  filter(ada == TRUE) %>% 
+  distinct(line, station_name) %>% 
+  nrow()
+```
+There are `r ada_compliant` ADA compliant stations. 
+
+### (iii) What proportion of station entrances / exits without vending allow entrance?
+```{r}
+proportion_no_vending_allows_entry = 
+  NYC_Subway_Data %>%
+  filter(vending == "NO") %>%  # Filter rows where there is no vending
+  summarise(proportion = mean(entry == TRUE)) %>%  # Calculate the proportion where entry is TRUE
+  pull(proportion)
+
+# Output the result
+proportion_no_vending_allows_entry
+```
+37.7% of station entrances / exits without vending allow entrance
+
+## Step 3: Split the data into separate route number and route name variables.
+```{r reformat routes}
+NYC_Subway_Data_reformed = 
+  NYC_Subway_Data %>%
+  mutate(across(starts_with("route"), as.character)) %>%  # Ensure all route columns are characters
+  pivot_longer(
+    cols = starts_with("route"), # Specify the columns for the routes
+    names_to = "route_number",
+    values_to = "route") %>%
+  drop_na(route)# Drop rows where route is NA
+NYC_Subway_Data_reformed
+
+```
+### (i) How many distinct stations serve the A train?
+```{r distinct stations for A train}
+NYC_Subway_Data_reformed %>% 
+  filter(route == "A") %>% 
+  distinct(line, station_name) %>% 
+  nrow()
+```
+There are 60 distinct stations serve the A train. 
+
+### (ii) How many are ADA compliant of the stations that serve the A train?
+```{r ADA compliant A train}
+NYC_Subway_Data_reformed %>% 
+  filter(ada == TRUE) %>%  
+  filter(route == "A") %>% 
+  distinct(line, station_name) %>% 
+  nrow()
+```
+Among the 60 stations that serve the A train, 17 have at least one ADA compliant entry or exit.
+
+# Problem 2
+## Step 1: Read and clean the Mr. Trash Wheel sheet
+```{r}
+mr_df = read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx", sheet = "Mr. Trash Wheel", range = "A2:N653", na = c("NA", "", ",")) %>% 
+  filter(!is.na(Dumpster)) %>% 
+  janitor::clean_names() %>% 
+  mutate(year = as.character(year)) %>% 
+  mutate(trash_wheel = "mr") %>%
+  mutate(sports_balls = as.integer(sports_balls), homes_powered = (weight_tons*500/30))
+```
+```{r}
+# Indicate the sheet and exclude non-data entries by skipping rows and specifying the range.
+mr_trash_wheel = read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx",
+                            sheet = "Mr. Trash Wheel", 
+                            skip = 1,  # Skip the first row (it is non-data or a note)
+                            range = "A2:N653")  # Adjust the range based on the actual data layout
+mr_trash_wheel_cleaned = mr_trash_wheel %>% # Omit rows which do not include dumpster-specific data
+  filter(!is.na(Dumpster)) %>%  # Retain only the rows where the 'dumpster' column is not NA
+  janitor::clean_names() %>%
+  select(dumpster:homes_powered) %>% 
+  mutate(sports_balls = round(sports_balls, 0)) %>% 
+  mutate(sports_balls = as.integer(sports_balls)) %>% 
+  mutate(year = as.numeric(year)) %>% 
+  mutate(trash_wheel = "mr_trash")
+mr_trash_wheel_cleaned
+
+```
+
+## Step 2: Read and clean the Professor Trash Wheel sheet
+```{r}
+prof_trash_wheel = 
+  read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx",
+             sheet = "Professor Trash Wheel",
+             skip = 1,
+             range = "A2:M121",) %>%
+  janitor::clean_names() %>% 
+  select(dumpster:homes_powered) %>%
+  mutate(year = as.numeric(year)) %>% 
+  mutate(trash_wheel = "pro_trash")
+
+prof_trash_wheel 
+```
+## Step 3: Read and clean the Gwynnda Trash Wheel sheet
+```{r}
+gwynnda_df = 
+  read_excel("./dataset/202409\ Trash\ Wheel\ Collection\ Data.xlsx", 
+             sheet = "Gwynnda Trash Wheel",
+             skip = 1,
+             range = "A2:L265", ) %>% 
+  janitor::clean_names() %>% 
+  select(dumpster:homes_powered) %>%
+  mutate(trash_wheel = "gwynnda_trash") %>% 
+  mutate(year = as.numeric(year))
+gwynnda_df
+```
+
+## Step 4: Combine the datasets
+```{r}
+combined_trash_wheel_data = bind_rows(mr_trash_wheel_cleaned,
+                                       prof_trash_wheel,
+                                       gwynnda_df)
+combined_trash_wheel_data
+```
+### A description of the dataset:
+
+The resulting dataset contains `r  nrow(combined_trash_wheel_data)` observations, which include information on the names of trash wheels, as well as the weight and type of crash collected by each trash wheel.
+
+```{r}
+total_weight_prof_trash_wheel = combined_trash_wheel_data %>%
+  filter(trash_wheel == "pro_trash") %>%
+  summarise(total_weight = sum(weight_tons, na.rm = TRUE)) %>%
+  pull(total_weight)
+```
+The total weight of trash collected by Professor Trash Wheel is `r total_weight_prof_trash_wheel` tons. 
+
+```{r}
+total_cig_butts_gwynnda_june_2022 = combined_trash_wheel_data %>%
+  filter(trash_wheel == "gwynnda_trash", month == "June", year == 2022) %>%
+  summarise(total_cig_butts = sum(cigarette_butts, na.rm = TRUE)) %>%
+  pull(total_cig_butts)
+```
+The total number of cigarette butts collected by Gwynnda in June of 2022 is `r total_cig_butts_gwynnda_june_2022`.
+
+# Problem 3
+## Step 1: Data Wrangling
+```{r}
+# Clean and split baker names, addressing instances where bakers have multiple names.
+bakers_df =
+  read_csv("./dataset/gbb_datasets/bakers.csv", 
+           na = c("NA", "", ".")) %>%
+  janitor::clean_names() %>%
+  separate(baker_name, into = c("first_name", "last_name"), 
+           sep = " ", 
+           extra = "merge",  # To make sure the middle names are included in 'last_name'.
+           fill = "right")  # If a last name is missing, it will be filled with NA.
+# Import and clean bakes data
+bakes_df = read_csv("./dataset/gbb_datasets/bakes.csv", 
+                    na = c("NA", "", ".")) %>%
+  janitor::clean_names()
+# Import and clean the results data, skipping two rows if necessary
+results_df = read_csv("./dataset/gbb_datasets/results.csv", 
+                      skip = 2, 
+                      na = c("NA", "", ".")) %>%
+  janitor::clean_names()
+# Check column names in both datasets
+colnames(bakes_df)
+colnames(bakers_df)
+colnames(results_df)
+```
+
+## Step 2: Clean every dataset
+
+* Check for missing values: Use summary() or is.na() in R to check for missing data.
+
+* Check for consistency across datasets: use `anti_join()` in R to detect discrepancies, such as missing matches between bakers and results.
+
+### Sub-Step 1: Use anti_join() to check dataset matching and completeness.
+
+```{r}
+# Combine first_name and last_name into a single 'baker' column in bakers_df
+bakers_df = bakers_df %>%
+  mutate(baker = paste(first_name, last_name))
+
+# Check for unmatched rows using correct 'by' syntax
+unmatched_bakes = anti_join(bakes_df, bakes_df, by = c("baker", "series"))
+unmatched_results = anti_join(results_df, bakers_df, by = c("baker", "series"))
+unmatched_bakers = anti_join(bakers_df, results_df, by = c("baker", "series"))
+
+# View unmatched rows (if any)
+unmatched_bakes
+unmatched_results
+unmatched_bakers
+
+```
+### Sub-Step 2: Standardize baker names by resolving "Joanne" to "Jo."
+
+The result of the `anti_join()` indicated that the names "Joanne" and "Jo" do not match, although they belong to the same series. We will standardize the name to "Jo" in both datasets, assuming they refer to the same person.
+
+```{r}
+# Standardize the 'baker' name from 'Joanne' to 'Jo' in results_df
+results_df = results_df %>%
+  mutate(baker = ifelse(baker == "Joanne", "Jo", baker))
+
+# Remove extra quotes around the name 'Jo' in bakes_df if necessary
+bakes_df = bakes_df %>%
+  mutate(baker = ifelse(baker == '"Jo"', "Jo", baker))  # Standardize 'Jo' format
+```
+### Sub-Step 3: Verify Completeness After Correcting Baker Names
+
+After standardizing the names (for example, renaming "Joanne" to "Jo"), we will recheck the datasets to confirm that no mismatches remain between the bakes_df, results_df, and bakers_df datasets.
+
+```{r}
+# Recheck for any unmatched rows after correcting the names
+unmatched_bakes = anti_join(bakes_df, bakers_df, by = c("baker", "series"))
+unmatched_results = anti_join(results_df, bakers_df, by = c("baker", "series"))
+unmatched_bakers = anti_join(bakers_df, results_df, by = c("baker", "series"))
+
+# Display unmatched rows (if any exist)
+unmatched_bakes
+unmatched_results
+unmatched_bakers
+
+```
+
+## Step 3: Merge the datasets
+
+To merge the `results_df`, `bakes_df`, and `bakers_df` datasets into a single unified dataset, we carry out consecutive `left_join()` operations. The resulting dataset is subsequently reorganized and saved as a CSV file.
+
+```{r}
+# Merge results_df, bakes_df, and bakers_df into one final dataset
+final_df <- results_df %>%
+  left_join(bakes_df, by = c("baker", "series", "episode")) %>%
+  left_join(bakers_df, by = c("baker", "series")) %>%
+  relocate(series, episode, .before = "baker")  # Reorder columns for better readability
+
+# Export the final dataset as a CSV file
+write.csv(final_df, file = "./dataset/gbb_datasets/final.csv")
+
+```
+
+### A description of the dataset:
+
+Upon reviewing the raw data, I found that while bakers.csv contains the full names of the bakers, both bakes.csv and results.csv only list the first names. To address this, I split the full names in bakers.csv into first and last names. Additionally, I noticed that the first two rows of results.csv contained unnecessary information, so I skipped them to simplify processing.
+
+Next, I used the anti_join function to identify any inconsistencies between the datasets and resolved the mismatches, particularly with the baker names. After ensuring all data was aligned, I merged the datasets in a way that retained all relevant information. I also reorganized the variables for better clarity, placing the series and episode information before the baker's name.
+
+Finally, I saved the merged dataset in the gbb_dataset directory. The resulting dataset combines all the information from bakers.csv, bakes.csv, and results.csv without losing any data. The variables are arranged logically, making it easy for users to quickly locate bakers based on the series and episode.
+
+
+## Step 4: Create table showing winner or star baker
+
+Create a reader-friendly table showing the star baker or winner of each episode in Seasons 5 through 10.
+
+```{r}
+# Filter results for seasons 5 to 10 and include only winners and star bakers
+winners_df <- results_df %>%
+  filter(between(series, 5, 10), result %in% c("WINNER", "STAR BAKER")) %>%
+  select(series, episode, baker, result)
+
+# Pivot the data and arrange by episode, then display it in a table format
+winners_df %>%
+  pivot_wider(names_from = series, values_from = baker) %>%
+  arrange(episode) %>%
+  knitr::kable()
+```
+From the results, we observe that each episode of every season features a baker being awarded "STAR BAKER," and at the end of each season, a "WINNER" is crowned. It seems logical to assume that the more often a baker is named "STAR BAKER," the higher their chances of becoming the season’s "WINNER." This pattern holds for Nadiya in season 6, Candice in season 7, Sophie in season 8, and Rahul in season 9. However, the winners of seasons 5 and 10 did not follow this trend.
+
+## Step 5: Import the views dataset
+```{r}
+# Load and clean viewership data, reshaping it for analysis
+viewership_df =
+  read_csv("./dataset/gbb_datasets/viewers.csv") %>%
+  janitor::clean_names() %>%
+  gather(key = "series", value = "viewership", series_1:series_10) %>%
+  mutate(
+    series = as.numeric(gsub("series_", "", series))  # Extract series number and convert to numeric
+  ) %>%
+  arrange(series) %>%
+  select(series, everything())  # Ensure 'series' is the first column
+knitr::kable(head(viewership_df, 10), caption = "First 10 rows in the Viewership dataset")
+```
+I imported the data, cleaned the variable names, and organized it using pivot_longer. The dataset now has a series column representing each season and a viewership column containing the corresponding viewership data. I removed the "series_" prefix to convert the series numbers into numeric values and then arranged the data in ascending order by series. The first ten rows of this dataset are shown above.
+The average viewership in series 1 is `r viewership_df |> filter(series == "1") |> summarise(mean(viewership, na.rm = TRUE))`. The average viewership in series 5 is `r viewership_df |> filter(series == "5") |> summarise(average = round(mean(viewership, na.rm = TRUE),2))`.
